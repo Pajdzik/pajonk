@@ -28,7 +28,7 @@ def download_external_pages(output_dir: str, comment: Tag) -> None:
 
     try:
         page_content = download(url)
-    except requests.exceptions.HTTPError as e:
+    except Exception as e:
         logger.error(f"Failed to download {url}: {e}")
         return
 
