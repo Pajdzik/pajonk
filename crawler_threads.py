@@ -1,77 +1,29 @@
 #!/usr/bin/env python3
 
-import argparse
+from calendar import c
+from concurrent.futures import ThreadPoolExecutor
 import logging
-import requests
-from bs4 import BeautifulSoup, Tag
+from typing import Callable
+from bs4 import Tag
 import threading
 import os
-from typing import Optional
 import time
+
+from crawler import (
+    download,
+    download_external_pages,
+    extract_comments,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def download(url: str) -> str:
-    logger.info(f"Downloading {url}")
-
-    response = requests.get(url)
-    response.raise_for_status()
-
-    logger.debug(f"Downloaded {len(response.text)} characters from {url}")
-    return response.text
-
-
-def extract_comments(page_content: str) -> list[Tag]:
-    logger.info("Extracting comments")
-
-    soup = BeautifulSoup(page_content, "html.parser")
-    comments = soup.find_all("span", class_="commtext")
-
-    logger.info(f"Found {len(comments)} comments")
-    return comments
-
-
-def url_to_filename(url: str) -> str:
-    return url.replace("https://", "").replace("/", "-")
-
-
-def download_external_pages(output_dir: str, comment: Tag) -> None:
-    logger.info("Downloading external page")
-
-    url = extract_url(comment)
-    if not url:
-        logger.debug("No URL found")
-        return
-
-    page_content = download(url)
-    filename = os.path.join(output_dir, f"{url_to_filename(url)}.html")
-    with open(filename, "w") as file:
-        file.write(page_content)
-
-    logger.info(f"Downloaded external page to {filename}")
-
-
-def extract_url(comment: Tag) -> Optional[str]:
-    link = comment.find("a")
-    if link:
-        return link.get("href")
-    return None
-
-
-def crawl(url: str) -> None:
-    logger.info(f"Crawling {url}")
-
-    comment_page = download(url)
-    comments = extract_comments(comment_page)
-
-    output_dir = f"output/{time.strftime('%Y-%m-%d_%H-%M-%S')}"
-    os.makedirs(output_dir, exist_ok=True)
-
+def process_with_threads(comments: list[Tag], output_dir: str) -> None:
     threads = []
-    for comment in comments:
+    for i, comment in enumerate(comments):
         thread = threading.Thread(
             target=download_external_pages,
+            name=f"Thread-{i:03}",
             args=(
                 output_dir,
                 comment,
@@ -85,12 +37,69 @@ def crawl(url: str) -> None:
         thread.join()
 
 
+def process_with_threadpool(comments: list[Tag], output_dir: str) -> None:
+    with ThreadPoolExecutor() as executor:
+        for comment in comments:
+            executor.submit(download_external_pages, output_dir, comment)
+
+
+async def process_with_async_io(comments: list[Tag], output_dir: str) -> None:
+    pass
+
+
+def measure_time(func: Callable) -> Callable:
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        func(*args, **kwargs)
+        end_time = time.time()
+        # logger.critical(
+        #     f"{func.__name__} Finished in {end_time - start_time:.2f} seconds"
+        # )
+
+        return end_time - start_time
+
+    return wrapper
+
+
+def crawl(
+    comments: list[Tag], output_dir: str, process: Callable[[list[Tag], str], None]
+) -> float:
+    return measure_time(process)(comments, output_dir)
+
+
+def get_comments(url: str) -> list[Tag]:
+    logger.debug(f"Getting comments from {url}")
+
+    page_content = download(url)
+    comments = extract_comments(page_content)
+
+    return comments
+
+
+def create_output_dir() -> str:
+    output_dir = f"output/{time.strftime('%Y-%m-%d_%H-%M-%S')}"
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
+
+
 if __name__ == "__main__":
-    logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.DEBUG)
+    logging.basicConfig(
+        format="%(relativeCreated)6d %(threadName)s %(message)s", level=logging.WARNING
+    )
 
     # parser = argparse.ArgumentParser(description="Your script description")
     # parser.add_argument('url', type=str, help='Hacker News address')
     # args = parser.parse_args()
-    url = "https://news.ycombinator.com/item?id=40099344"
 
-    crawl(url)
+    url = "https://news.ycombinator.com/item?id=40077533"
+    comments = get_comments(url)
+    output_dir = create_output_dir()
+
+    for _ in range(2):
+        for process in (process_with_threads, process_with_threadpool):
+            duration = crawl(
+                comments,
+                output_dir,
+                process,
+            )
+            print(f"{process.__name__} took {duration:.2f} seconds")
