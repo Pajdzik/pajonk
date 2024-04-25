@@ -14,6 +14,7 @@ from crawler import (
     download,
     download_external_pages,
     download_external_pages_async,
+    fetch_external_pages_async,
     extract_comments,
     save_to_file_async,
 )
@@ -56,7 +57,7 @@ async def process_with_asyncio_in_two_stages(
 ) -> None:
     async with aiohttp.ClientSession() as session:
         content_tasks = [
-            download_external_pages_async(session, comment) for comment in comments
+            fetch_external_pages_async(session, comment) for comment in comments
         ]
         maybe_contents = await asyncio.gather(*content_tasks)
         contents = [content for content in maybe_contents if content is not None]
@@ -70,6 +71,19 @@ def process_with_asyncio_in_two_stages_sync(
     comments: list[Tag], output_dir: str
 ) -> None:
     asyncio.run(process_with_asyncio_in_two_stages(comments, output_dir))
+
+
+async def process_with_asyncio_async(comments: list[Tag], output_dir: str) -> None:
+    async with aiohttp.ClientSession() as session:
+        tasks = [
+            download_external_pages_async(session, output_dir, comment)
+            for comment in comments
+        ]
+        await asyncio.gather(*tasks)
+
+
+def process_with_asyncio_sync(comments: list[Tag], output_dir: str) -> None:
+    asyncio.run(process_with_asyncio_async(comments, output_dir))
 
 
 def measure_time(func: Callable) -> Callable:
@@ -120,7 +134,8 @@ if __name__ == "__main__":
     for _ in range(2):
         for process in (
             # process_with_asyncio_sync,
-            process_with_threads,
+            process_with_asyncio_sync,
+            # process_with_threads,
             # process_with_threadpool,
         ):
             duration = crawl(

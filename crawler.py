@@ -66,7 +66,7 @@ async def save_to_file_async(output_dir: str, url: str, content: str) -> asyncio
     loop.run_in_executor(None, save_to_file, output_dir, url, content)
 
 
-async def download_external_pages_async(
+async def fetch_external_pages_async(
     session: ClientSession, comment: Tag
 ) -> Optional[asyncio.Future[Tuple[str, str]]]:
     logger.debug(f"Downloading external page")
@@ -88,3 +88,12 @@ async def download_external_pages_async(
     except Exception as e:
         logger.error(f"Failed to download {url}: {e}")
         return None
+
+
+async def download_external_pages_async(
+    session: ClientSession, output_dir: str, comment: Tag
+) -> None:
+    maybe_content = await fetch_external_pages_async(session, comment)
+    if maybe_content is not None:
+        url, content = maybe_content
+        await save_to_file_async(output_dir, url, content)
