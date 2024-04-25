@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from calendar import c
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import logging
 from typing import Callable
@@ -8,14 +8,22 @@ from bs4 import Tag
 import threading
 import os
 import time
+import aiohttp
 
 from crawler import (
     download,
     download_external_pages,
+    download_external_pages_async,
     extract_comments,
+    save_to_file_async,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def process_comments(comments: list[Tag], output_dir: str) -> None:
+    for comment in comments:
+        download_external_pages(output_dir, comment)
 
 
 def process_with_threads(comments: list[Tag], output_dir: str) -> None:
@@ -43,8 +51,23 @@ def process_with_threadpool(comments: list[Tag], output_dir: str) -> None:
             executor.submit(download_external_pages, output_dir, comment)
 
 
-async def process_with_async_io(comments: list[Tag], output_dir: str) -> None:
-    pass
+async def process_with_asyncio_in_two_stages(
+    comments: list[Tag], output_dir: str
+) -> None:
+    async with aiohttp.ClientSession() as session:
+        content_tasks = [
+            download_external_pages_async(session, comment) for comment in comments
+        ]
+        maybe_contents = await asyncio.gather(*content_tasks)
+        contents = [content for content in maybe_contents if content is not None]
+        file_tasks = [
+            save_to_file_async(output_dir, url, content) for url, content in contents
+        ]
+        await asyncio.gather(*file_tasks)
+
+
+def process_with_asyncio_sync(comments: list[Tag], output_dir: str) -> None:
+    asyncio.run(process_with_asyncio_in_two_stages(comments, output_dir))
 
 
 def measure_time(func: Callable) -> Callable:
@@ -52,10 +75,6 @@ def measure_time(func: Callable) -> Callable:
         start_time = time.time()
         func(*args, **kwargs)
         end_time = time.time()
-        # logger.critical(
-        #     f"{func.__name__} Finished in {end_time - start_time:.2f} seconds"
-        # )
-
         return end_time - start_time
 
     return wrapper
@@ -84,19 +103,24 @@ def create_output_dir() -> str:
 
 if __name__ == "__main__":
     logging.basicConfig(
-        format="%(relativeCreated)6d %(threadName)s %(message)s", level=logging.WARNING
+        format="%(relativeCreated)6d %(threadName)s %(message)s", level=logging.INFO
     )
 
     # parser = argparse.ArgumentParser(description="Your script description")
     # parser.add_argument('url', type=str, help='Hacker News address')
     # args = parser.parse_args()
 
-    url = "https://news.ycombinator.com/item?id=40077533"
+    # url = "https://news.ycombinator.com/item?id=40077533"
+    url = "https://news.ycombinator.com/item?id=40151952"
     comments = get_comments(url)
     output_dir = create_output_dir()
 
     for _ in range(2):
-        for process in (process_with_threads, process_with_threadpool):
+        for process in (
+            # process_with_asyncio_sync,
+            process_with_threads,
+            # process_with_threadpool,
+        ):
             duration = crawl(
                 comments,
                 output_dir,

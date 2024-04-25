@@ -1,5 +1,7 @@
+import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Tuple
+from aiohttp import ClientSession
 import requests
 from bs4 import BeautifulSoup, Tag
 import os
@@ -21,21 +23,19 @@ def download(url: str) -> str:
 def download_external_pages(output_dir: str, comment: Tag) -> None:
     logger.debug(f"{threading.current_thread().getName()} Downloading external page")
 
-    url = extract_url(comment)
-    if not url:
-        logger.debug("No URL found")
-        return
-
     try:
+        url = extract_url(comment)
         page_content = download(url)
+        save_to_file(output_dir, url, page_content)
     except Exception as e:
-        logger.error(f"Failed to download {url}: {e}")
+        logger.error(f"Failed to save {url}: {e}")
         return
 
+
+def save_to_file(output_dir: str, url: str, content: str) -> None:
     filename = os.path.join(output_dir, f"{url_to_filename(url)}.html")
     with open(filename, "w") as file:
-        file.write(page_content)
-
+        file.write(content)
     logger.info(f"Downloaded external page to {filename}")
 
 
@@ -57,4 +57,34 @@ def extract_url(comment: Tag) -> Optional[str]:
     link = comment.find("a")
     if link:
         return link.get("href")
+
     return None
+
+
+async def save_to_file_async(output_dir: str, url: str, content: str) -> asyncio.Future:
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, save_to_file, output_dir, url, content)
+
+
+async def download_external_pages_async(
+    session: ClientSession, comment: Tag
+) -> Optional[asyncio.Future[Tuple[str, str]]]:
+    logger.debug(f"Downloading external page")
+
+    url = extract_url(comment)
+    if not url:
+        logger.debug("No URL found")
+        return None
+
+    try:
+        async with session.get(url) as response:
+            try:
+                content = await response.text()
+                return [url, content]
+            except Exception as e:
+                logger.error(f"Failed to deserialize {url}: {e}")
+                return None
+
+    except Exception as e:
+        logger.error(f"Failed to download {url}: {e}")
+        return None

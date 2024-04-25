@@ -3,6 +3,7 @@
 import threading
 import time
 
+from slow import long_running_fuction_for_loop
 from telemetry import run_with_telemetry
 
 
