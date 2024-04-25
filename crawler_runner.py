@@ -66,7 +66,9 @@ async def process_with_asyncio_in_two_stages(
         await asyncio.gather(*file_tasks)
 
 
-def process_with_asyncio_sync(comments: list[Tag], output_dir: str) -> None:
+def process_with_asyncio_in_two_stages_sync(
+    comments: list[Tag], output_dir: str
+) -> None:
     asyncio.run(process_with_asyncio_in_two_stages(comments, output_dir))
 
 
