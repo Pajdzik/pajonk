@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
 
+import threading
+import time
+
+
 def run_with_telemetry(f, id, *args, **kwargs):
     print(f"[{f.__name__}#{id}] Start. <{threading.current_thread().name}>")
     start_time = time.time()

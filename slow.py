@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 
+import time
+
+
 def long_running_function_sleep(sleep_time: int):
     time.sleep(sleep_time)
 

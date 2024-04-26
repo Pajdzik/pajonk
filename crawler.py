@@ -25,6 +25,9 @@ def download_external_pages(output_dir: str, comment: Tag) -> None:
 
     try:
         url = extract_url(comment)
+        if not url:
+            logger.debug("No URL found")
+            return
         page_content = download(url)
         save_to_file(output_dir, url, page_content)
     except Exception as e:
@@ -33,10 +36,11 @@ def download_external_pages(output_dir: str, comment: Tag) -> None:
 
 
 def save_to_file(output_dir: str, url: str, content: str) -> None:
+    logger.debug(f"Saving to file {url}")
     filename = os.path.join(output_dir, f"{url_to_filename(url)}.html")
     with open(filename, "w") as file:
         file.write(content)
-    logger.info(f"Downloaded external page to {filename}")
+    logger.debug(f"Saved external page to {filename}")
 
 
 def url_to_filename(url: str) -> str:
@@ -62,6 +66,7 @@ def extract_url(comment: Tag) -> Optional[str]:
 
 
 async def save_to_file_async(output_dir: str, url: str, content: str) -> asyncio.Future:
+    logger.debug(f"Async saving to file {url}")
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, save_to_file, output_dir, url, content)
 
@@ -97,3 +102,4 @@ async def download_external_pages_async(
     if maybe_content is not None:
         url, content = maybe_content
         await save_to_file_async(output_dir, url, content)
+        logger.debug(f"Downloaded external page to {url}")

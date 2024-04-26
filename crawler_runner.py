@@ -127,20 +127,21 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     # url = "https://news.ycombinator.com/item?id=40077533"
-    url = "https://news.ycombinator.com/item?id=40151952"
+    # url = "https://news.ycombinator.com/item?id=40151952"
+    url = "https://news.ycombinator.com/item?id=40154395"
     comments = get_comments(url)
     output_dir = create_output_dir()
 
-    for _ in range(2):
+    for _ in range(1):
         for process in (
-            # process_with_asyncio_sync,
             process_with_asyncio_sync,
-            # process_with_threads,
-            # process_with_threadpool,
+            process_with_threads,
+            process_with_threadpool,
         ):
             duration = crawl(
                 comments,
                 output_dir,
                 process,
             )
+            time.sleep(2)
             print(f"{process.__name__} took {duration:.2f} seconds")
