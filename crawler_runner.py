@@ -55,7 +55,8 @@ def process_with_threadpool(comments: list[Tag], output_dir: str) -> None:
 async def process_with_asyncio_in_two_stages(
     comments: list[Tag], output_dir: str
 ) -> None:
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=10)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         content_tasks = [
             fetch_external_pages_async(session, comment) for comment in comments
         ]
@@ -73,7 +74,28 @@ def process_with_asyncio_in_two_stages_sync(
     asyncio.run(process_with_asyncio_in_two_stages(comments, output_dir))
 
 
+async def on_request_start(session, trace_config_ctx, params):
+    print("Request started:", params)
+
+
+async def on_request_end(session, trace_config_ctx, params):
+    print("Request ended:", params)
+
+
+async def on_response_chunk_received(session, trace_config_ctx, params):
+    print("Response chunk received:", params)
+
+
+def aiohttp_trace_config():
+    trace_config = aiohttp.TraceConfig()
+    # trace_config.on_request_start.append(on_request_start)
+    # trace_config.on_request_end.append(on_request_end)
+    # trace_config.on_response_chunk_received.append(on_response_chunk_received)
+    return trace_config
+
+
 async def process_with_asyncio_async(comments: list[Tag], output_dir: str) -> None:
+    timeout = aiohttp.ClientTimeout(total=1)
     async with aiohttp.ClientSession() as session:
         tasks = [
             download_external_pages_async(session, output_dir, comment)
@@ -119,24 +141,28 @@ def create_output_dir() -> str:
 
 if __name__ == "__main__":
     logging.basicConfig(
-        format="%(relativeCreated)6d %(threadName)s %(message)s", level=logging.INFO
+        format="%(relativeCreated)6d %(threadName)s %(message)s", level=logging.DEBUG
     )
 
     # parser = argparse.ArgumentParser(description="Your script description")
     # parser.add_argument('url', type=str, help='Hacker News address')
     # args = parser.parse_args()
 
-    # url = "https://news.ycombinator.com/item?id=40077533"
+    url = "https://news.ycombinator.com/item?id=40077533"
     # url = "https://news.ycombinator.com/item?id=40151952"
-    url = "https://news.ycombinator.com/item?id=40154395"
+    # url = "https://news.ycombinator.com/item?id=40154395"
+    # one_link_thread = "https://news.ycombinator.com/item?id=40164199"
+
+    # url = "https://news.ycombinator.com/item?id=40158794"
+
     comments = get_comments(url)
     output_dir = create_output_dir()
 
     for _ in range(1):
         for process in (
             process_with_asyncio_sync,
-            process_with_threads,
-            process_with_threadpool,
+            # process_with_threads,
+            # process_with_threadpool,
         ):
             duration = crawl(
                 comments,

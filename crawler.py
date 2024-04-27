@@ -83,23 +83,26 @@ async def fetch_external_pages_async(
 
     try:
         async with session.get(url) as response:
-            try:
-                content = await response.text()
-                return [url, content]
-            except Exception as e:
-                logger.error(f"Failed to deserialize {url}: {e}")
+            if response.content_type != "text/html":
+                logger.warn(f"Unexpected content type: {response.content_type}")
                 return None
+            content = await response.text()
+            return [url, content]
 
     except Exception as e:
-        logger.error(f"Failed to download {url}: {e}")
-        return None
+        logger.error(f"Failed to async download {url}: {e}")
+        raise e
 
 
 async def download_external_pages_async(
     session: ClientSession, output_dir: str, comment: Tag
 ) -> None:
-    maybe_content = await fetch_external_pages_async(session, comment)
-    if maybe_content is not None:
-        url, content = maybe_content
-        await save_to_file_async(output_dir, url, content)
-        logger.debug(f"Downloaded external page to {url}")
+    try:
+        maybe_content = await fetch_external_pages_async(session, comment)
+        if maybe_content is not None:
+            url, content = maybe_content
+            await save_to_file_async(output_dir, url, content)
+            logger.debug(f"Downloaded external page to {url}")
+    except Exception as e:
+        logger.error(f"Failed download external page: {e}")
+        return
