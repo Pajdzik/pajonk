@@ -12,6 +12,6 @@ multidict==6.0.5
 platformdirs==4.2.0
 requests==2.33.0
 soupsieve==2.5
-urllib3==2.6.3
+urllib3==2.7.0
 virtualenv==20.36.1
 yarl==1.9.4
